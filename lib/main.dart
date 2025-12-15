@@ -39,6 +39,9 @@ class _GeniusGameState extends State<GeniusGame> {
     Colors.yellow,
   ];
 
+  // Gerador de números aleatórios (instância única)
+  final Random _random = Random();
+
   // Sequência gerada pelo jogo
   final List<int> _sequence = [];
   
@@ -78,9 +81,8 @@ class _GeniusGameState extends State<GeniusGame> {
       _playerInputs.clear();
     });
 
-    // Adiciona cor aleatória
-    final random = Random();
-    final newColor = random.nextInt(4);
+    // Adiciona cor aleatória usando a instância única
+    final newColor = _random.nextInt(4);
     _sequence.add(newColor);
     
     // Debug: mostra a sequência no console
@@ -90,6 +92,13 @@ class _GeniusGameState extends State<GeniusGame> {
     for (int i = 0; i < _sequence.length; i++) {
       print('  ${i + 1}. ${colorNames[_sequence[i]]}');
     }
+    
+    // Estatísticas de distribuição
+    final stats = [0, 0, 0, 0];
+    for (var color in _sequence) {
+      stats[color]++;
+    }
+    print('📊 Distribuição: Vermelho=${stats[0]}, Verde=${stats[1]}, Azul=${stats[2]}, Amarelo=${stats[3]}');
     print('═══════════════════════════════════════');
 
     // Pequeno delay antes de começar a mostrar
