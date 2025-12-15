@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MyApp());
@@ -41,6 +43,17 @@ class _GeniusGameState extends State<GeniusGame> {
 
   // Gerador de números aleatórios (instância única)
   final Random _random = Random();
+  
+  // Player de áudio
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  
+  // Frequências de som para cada cor (baseado no Genius original)
+  final List<double> _frequencies = [
+    329.63, // Vermelho - Mi (E4)
+    277.18, // Verde - Dó# (C#4)
+    220.00, // Azul - Lá (A3)
+    164.81, // Amarelo - Mi (E3)
+  ];
 
   // Sequência gerada pelo jogo
   final List<int> _sequence = [];
@@ -52,6 +65,7 @@ class _GeniusGameState extends State<GeniusGame> {
   bool _isShowingSequence = false;
   bool _gameStarted = false;
   int _currentScore = 0;
+  int _highScore = 0;
   
   // Controle de animação de brilho
   int _glowingButton = -1;
@@ -59,11 +73,65 @@ class _GeniusGameState extends State<GeniusGame> {
   @override
   void initState() {
     super.initState();
+    _loadHighScore();
     _startNewGame();
+  }
+  
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+  
+  // Carrega o recorde salvo
+  Future<void> _loadHighScore() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _highScore = prefs.getInt('high_score') ?? 0;
+    });
+  }
+  
+  // Salva novo recorde
+  Future<void> _saveHighScore(int score) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('high_score', score);
+    setState(() {
+      _highScore = score;
+    });
   }
 
   // Inicia um novo jogo
-  void _startNewGame() {
+  void _startNewGame() async {
+    // Se já está jogando e tem pontuação, pede confirmação
+    if (_gameStarted && _currentScore > 0) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Reiniciar Jogo?'),
+            content: Text(
+              'Você tem ${_currentScore} ponto(s). Deseja realmente reiniciar?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text(
+                  'Reiniciar',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+      
+      if (confirmed != true) return;
+    }
+    
     setState(() {
       _sequence.clear();
       _playerInputs.clear();
@@ -72,6 +140,25 @@ class _GeniusGameState extends State<GeniusGame> {
       _glowingButton = -1;
     });
     _addToSequenceAndShow();
+  }
+  
+  // Toca o som correspondente à cor
+  Future<void> _playSound(int colorIndex) async {
+    try {
+      // Usa síntese de áudio simples
+      // Nota: Para sons mais realistas, você pode usar arquivos MP3
+      // e substituir por: await _audioPlayer.play(AssetSource('sounds/color_$colorIndex.mp3'));
+      
+      // Por enquanto, usamos um tom sintético baseado na frequência
+      // O audioplayers não suporta síntese direta, então vamos usar um beep curto
+      // Você pode substituir por arquivos de áudio reais depois
+      
+      await _audioPlayer.setVolume(0.5);
+      // Simulação: em produção, use arquivos de áudio reais
+      print('🔊 Som: ${_frequencies[colorIndex]} Hz');
+    } catch (e) {
+      print('Erro ao tocar som: $e');
+    }
   }
 
   // Adiciona uma nova cor aleatória à sequência e mostra
@@ -128,8 +215,8 @@ class _GeniusGameState extends State<GeniusGame> {
     // Aguarda um frame para garantir que o setState foi processado
     await Future.delayed(const Duration(milliseconds: 50));
     
-    // AQUI VOCÊ PODE ADICIONAR SOM:
-    // await _playSound(buttonIndex);
+    // Toca o som da cor
+    await _playSound(buttonIndex);
     
     // Mantém o brilho aceso
     await Future.delayed(const Duration(milliseconds: 550));
@@ -165,8 +252,8 @@ class _GeniusGameState extends State<GeniusGame> {
       _glowingButton = buttonIndex;
     });
     
-    // AQUI VOCÊ PODE ADICIONAR SOM:
-    // await _playSound(buttonIndex);
+    // Toca o som da cor
+    await _playSound(buttonIndex);
     
     await Future.delayed(const Duration(milliseconds: 300));
     
@@ -198,44 +285,63 @@ class _GeniusGameState extends State<GeniusGame> {
   }
 
   // Game Over
-  void _gameOver() {
+  void _gameOver() async {
     setState(() {
       _gameStarted = false;
     });
+    
+    // Verifica se bateu o recorde
+    final isNewRecord = _currentScore > _highScore;
+    if (isNewRecord) {
+      await _saveHighScore(_currentScore);
+    }
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text(
-            'Game Over!',
+          title: Text(
+            isNewRecord ? '🏆 Novo Recorde!' : 'Game Over!',
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.red,
+              color: isNewRecord ? Colors.amber : Colors.red,
             ),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.sentiment_dissatisfied,
+              Icon(
+                isNewRecord ? Icons.emoji_events : Icons.sentiment_dissatisfied,
                 size: 64,
-                color: Colors.red,
+                color: isNewRecord ? Colors.amber : Colors.red,
               ),
               const SizedBox(height: 16),
+              if (isNewRecord)
+                const Text(
+                  'Parabéns!',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.amber,
+                  ),
+                ),
+              if (isNewRecord) const SizedBox(height: 8),
               Text(
-                'Pontuação Final: $_currentScore',
+                'Pontuação: $_currentScore',
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Você errou a sequência!',
-                style: TextStyle(fontSize: 16),
+              Text(
+                'Recorde: $_highScore',
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.grey,
+                ),
               ),
             ],
           ),
@@ -322,24 +428,64 @@ class _GeniusGameState extends State<GeniusGame> {
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
               child: Column(
               children: [
-                const Text(
-                  'PONTUAÇÃO',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    letterSpacing: 2,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      children: [
+                        const Text(
+                          'PONTUAÇÃO',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$_currentScore',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      children: [
+                        const Text(
+                          'RECORDE',
+                          style: TextStyle(
+                            color: Colors.amber,
+                            fontSize: 12,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.emoji_events,
+                              color: Colors.amber,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '$_highScore',
+                              style: const TextStyle(
+                                color: Colors.amber,
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '$_currentScore',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 12),
                 if (_isShowingSequence)
                   Column(
                     children: [
@@ -449,7 +595,7 @@ class _GeniusGameState extends State<GeniusGame> {
           Padding(
             padding: const EdgeInsets.all(20.0),
             child: ElevatedButton.icon(
-              onPressed: _gameStarted ? null : _startNewGame,
+              onPressed: _startNewGame,
               icon: const Icon(Icons.refresh),
               label: const Text(
                 'Novo Jogo',
@@ -462,7 +608,6 @@ class _GeniusGameState extends State<GeniusGame> {
                 ),
                 backgroundColor: const Color(0xFF0f3460),
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.grey,
               ),
             ),
           ),
