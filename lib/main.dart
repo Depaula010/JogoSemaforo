@@ -54,6 +54,11 @@ class _GeniusGameState extends State<GeniusGame> {
     220.00, // Azul - Lá (A3)
     164.81, // Amarelo - Mi (E3)
   ];
+  
+  // Duração do som em milissegundos
+  // Valores sugeridos: 300-500ms (mais curto = mais rápido, mais longo = mais fácil de ouvir)
+  // Genius original usa ~400ms
+  static const int _soundDurationMs = 400;
 
   // Sequência gerada pelo jogo
   final List<int> _sequence = [];
@@ -159,7 +164,12 @@ class _GeniusGameState extends State<GeniusGame> {
       
       // Debug
       final colorNames = ['🔴 Vermelho', '🟢 Verde', '🔵 Azul', '🟡 Amarelo'];
-      print('🔊 Tocando: ${colorNames[colorIndex]} (${_frequencies[colorIndex]} Hz)');
+      print('🔊 Tocando: ${colorNames[colorIndex]} (${_frequencies[colorIndex]} Hz) por ${_soundDurationMs}ms');
+      
+      // Para o som após a duração configurada (efeito de bip curto)
+      Future.delayed(Duration(milliseconds: _soundDurationMs), () {
+        _audioPlayer.stop();
+      });
     } catch (e) {
       print('❌ Erro ao tocar som: $e');
     }
