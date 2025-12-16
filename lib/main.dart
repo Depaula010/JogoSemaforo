@@ -145,19 +145,23 @@ class _GeniusGameState extends State<GeniusGame> {
   // Toca o som correspondente à cor
   Future<void> _playSound(int colorIndex) async {
     try {
-      // Usa síntese de áudio simples
-      // Nota: Para sons mais realistas, você pode usar arquivos MP3
-      // e substituir por: await _audioPlayer.play(AssetSource('sounds/color_$colorIndex.mp3'));
+      // Mapeia índice da cor para nome do arquivo
+      final soundFiles = ['red.mp3', 'green.mp3', 'blue.mp3', 'yellow.mp3'];
       
-      // Por enquanto, usamos um tom sintético baseado na frequência
-      // O audioplayers não suporta síntese direta, então vamos usar um beep curto
-      // Você pode substituir por arquivos de áudio reais depois
+      // Para o som anterior (se estiver tocando)
+      await _audioPlayer.stop();
       
-      await _audioPlayer.setVolume(0.5);
-      // Simulação: em produção, use arquivos de áudio reais
-      print('🔊 Som: ${_frequencies[colorIndex]} Hz');
+      // Define volume
+      await _audioPlayer.setVolume(0.6);
+      
+      // Toca o som do asset
+      await _audioPlayer.play(AssetSource('sounds/${soundFiles[colorIndex]}'));
+      
+      // Debug
+      final colorNames = ['🔴 Vermelho', '🟢 Verde', '🔵 Azul', '🟡 Amarelo'];
+      print('🔊 Tocando: ${colorNames[colorIndex]} (${_frequencies[colorIndex]} Hz)');
     } catch (e) {
-      print('Erro ao tocar som: $e');
+      print('❌ Erro ao tocar som: $e');
     }
   }
 
